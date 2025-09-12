@@ -13,4 +13,5 @@ requests
 langchain
 langchain-groq
 langchain-core
+opencv-python
 
