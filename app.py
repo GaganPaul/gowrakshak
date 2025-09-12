@@ -16,7 +16,6 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-import cv2
 import numpy as np
 
 # Page configuration
@@ -649,36 +648,30 @@ def show_breed_recognition():
             """, unsafe_allow_html=True)
 
 def enhance_image(image):
-    """Enhance image quality for better breed recognition"""
+    """Enhance image quality for better breed recognition using PIL only"""
     try:
-        # Convert PIL to OpenCV format
-        img_array = np.array(image)
+        from PIL import ImageEnhance, ImageFilter
         
-        # Convert RGB to BGR for OpenCV
-        if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        # Convert to RGB if necessary
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
         
-        # Apply image enhancement
-        # 1. Denoise
-        denoised = cv2.fastNlMeansDenoisingColored(img_array, None, 10, 10, 7, 21)
+        # 1. Enhance contrast
+        contrast_enhancer = ImageEnhance.Contrast(image)
+        enhanced = contrast_enhancer.enhance(1.2)  # Increase contrast by 20%
         
-        # 2. Enhance contrast
-        lab = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        l = clahe.apply(l)
-        enhanced = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+        # 2. Enhance sharpness
+        sharpness_enhancer = ImageEnhance.Sharpness(enhanced)
+        enhanced = sharpness_enhancer.enhance(1.5)  # Increase sharpness by 50%
         
-        # 3. Sharpen
-        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-        sharpened = cv2.filter2D(enhanced, -1, kernel)
+        # 3. Enhance brightness slightly
+        brightness_enhancer = ImageEnhance.Brightness(enhanced)
+        enhanced = brightness_enhancer.enhance(1.1)  # Increase brightness by 10%
         
-        # Convert back to PIL
-        sharpened_rgb = cv2.cvtColor(sharpened, cv2.COLOR_BGR2RGB)
-        enhanced_image = Image.fromarray(sharpened_rgb)
+        # 4. Apply slight blur to reduce noise
+        enhanced = enhanced.filter(ImageFilter.MedianFilter(size=3))
         
-        return enhanced_image
+        return enhanced
     except Exception as e:
         st.warning(f"Image enhancement failed: {e}")
         return image
