@@ -1,0 +1,14 @@
+{
+  "listings": [
+    {
+      "id": 1,
+      "breed": "Gir",
+      "age": "3 years",
+      "price": 45000,
+      "location": "Karnataka",
+      "health": "Excellent",
+      "seller": "Ramu Patel",
+      "contact": "+91-9876543210"
+    }
+  ]
+}

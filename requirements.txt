@@ -1,0 +1,16 @@
+streamlit
+groq
+pillow
+opencv-python
+numpy
+pandas
+plotly
+streamlit-option-menu
+streamlit-aggrid
+streamlit-image-coordinates
+python-dotenv
+requests
+langchain
+langchain-groq
+langchain-core
+

@@ -1,0 +1,29 @@
+{
+  "breeds": [
+    {
+      "name": "Gir",
+      "origin": "Gujarat",
+      "characteristics": "High milk yield, disease resistant"
+    },
+    {
+      "name": "Sahiwal",
+      "origin": "Punjab",
+      "characteristics": "Heat tolerant, good milk producer"
+    },
+    {
+      "name": "Red Sindhi",
+      "origin": "Sindh",
+      "characteristics": "Adaptable, moderate milk yield"
+    },
+    {
+      "name": "Tharparkar",
+      "origin": "Rajasthan",
+      "characteristics": "Drought resistant, dual purpose"
+    },
+    {
+      "name": "Kankrej",
+      "origin": "Gujarat",
+      "characteristics": "Strong, good for draught work"
+    }
+  ]
+}
