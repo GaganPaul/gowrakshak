@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from groq import Groq
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import base64
 import io
 import json
@@ -17,6 +17,8 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 import numpy as np
+import time
+import re
 
 # Page configuration
 st.set_page_config(
@@ -218,15 +220,36 @@ st.markdown("""
         transform: scale(1.02);
     }
 
-    /* Mobile optimization */
+    /* Enhanced Mobile optimization */
     @media (max-width: 768px) {
+        .main {
+            padding: 0.5rem;
+        }
+        
+        .main-header {
+            padding: 1.5rem 0.8rem;
+            margin-bottom: 1rem;
+        }
+        
         .main-header h1 {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
+        }
+        
+        .main-header p {
+            font-size: 0.9rem;
         }
 
         .metric-card {
-            padding: 1.2rem 1rem;
+            padding: 1rem 0.8rem;
             margin: 0.3rem 0;
+        }
+        
+        .metric-card h3 {
+            font-size: 1rem;
+        }
+        
+        .metric-card h2 {
+            font-size: 1.5rem;
         }
 
         .stColumns {
@@ -234,9 +257,73 @@ st.markdown("""
         }
 
         .stButton > button {
-            padding: 0.7rem 1.5rem;
+            padding: 0.7rem 1rem;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        
+        .ai-result-card, .conservation-alert, .donation-card, .model-info {
+            padding: 1rem;
+            margin: 0.8rem 0;
+        }
+        
+        .stFileUploader > div {
+            padding: 1rem;
+            min-height: 80px;
+        }
+        
+        /* Mobile chat interface */
+        .chat-message {
+            padding: 0.8rem;
+            margin: 0.3rem 0;
             font-size: 0.9rem;
         }
+        
+        /* Mobile form inputs */
+        .stTextInput > div > div > input,
+        .stSelectbox > div > div > div,
+        .stNumberInput > div > div > input {
+            font-size: 16px; /* Prevents zoom on iOS */
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .main-header h1 {
+            font-size: 1.4rem;
+        }
+        
+        .main-header div {
+            flex-direction: column;
+            gap: 0.5rem !important;
+        }
+        
+        .main-header span {
+            font-size: 0.8rem !important;
+            padding: 0.2rem 0.6rem !important;
+        }
+        
+        .metric-card h2 {
+            font-size: 1.3rem;
+        }
+        
+        .stButton > button {
+            padding: 0.6rem 0.8rem;
+            font-size: 0.8rem;
+        }
+    }
+    
+    /* Touch-friendly improvements */
+    .stButton > button,
+    .stSelectbox,
+    .stTextInput,
+    .stNumberInput {
+        min-height: 44px; /* Apple's recommended touch target size */
+    }
+    
+    /* Improved scrolling on mobile */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 2rem;
     }
 
     /* Progress indicators */
@@ -282,7 +369,220 @@ if 'donations' not in st.session_state:
     st.session_state.donations = []
 if 'registered_animals' not in st.session_state:
     st.session_state.registered_animals = []
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'selected_language' not in st.session_state:
+    st.session_state.selected_language = 'English'
 
+# Multi-language translations
+TRANSLATIONS = {
+    'English': {
+        'title': '🐄 GowRakshak',
+        'subtitle': 'AI-Powered Cattle Conservation & Management Platform',
+        'dashboard': 'Dashboard',
+        'breed_recognition': 'AI Breed Recognition',
+        'chatbot': 'AI Chatbot',
+        'animal_registration': 'Animal Registration',
+        'conservation_alerts': 'Conservation Alerts',
+        'donation_portal': 'Donation Portal',
+        'bpa_integration': 'BPA Integration',
+        'analytics': 'Analytics',
+        'upload_image': '📸 Upload Cattle/Buffalo Image',
+        'analyze_button': '🔬 Analyze with AI Pipeline',
+        'ask_question': 'Ask me anything about cattle farming...',
+        'send': 'Send',
+        'quick_questions': 'Quick Questions',
+        'breed_care': 'How to care for my cattle breed?',
+        'feeding_tips': 'What are the best feeding practices?',
+        'health_check': 'Signs of healthy cattle?',
+        'breeding_advice': 'Breeding season advice?',
+        'disease_prevention': 'How to prevent diseases?',
+        'milk_production': 'How to increase milk production?'
+    },
+    'हिन्दी (Hindi)': {
+        'title': '🐄 गौरक्षक',
+        'subtitle': 'एआई-संचालित पशु संरक्षण और प्रबंधन मंच',
+        'dashboard': 'डैशबोर्ड',
+        'breed_recognition': 'एआई नस्ल पहचान',
+        'chatbot': 'एआई चैटबॉट',
+        'animal_registration': 'पशु पंजीकरण',
+        'conservation_alerts': 'संरक्षण चेतावनी',
+        'donation_portal': 'दान पोर्टल',
+        'bpa_integration': 'बीपीए एकीकरण',
+        'analytics': 'विश्लेषण',
+        'upload_image': '📸 गाय/भैंस की तस्वीर अपलोड करें',
+        'analyze_button': '🔬 एआई पाइपलाइन से विश्लेषण करें',
+        'ask_question': 'पशुपालन के बारे में कुछ भी पूछें...',
+        'send': 'भेजें',
+        'quick_questions': 'त्वरित प्रश्न',
+        'breed_care': 'अपनी गाय की नस्ल की देखभाल कैसे करें?',
+        'feeding_tips': 'सबसे अच्छी खिलाने की प्रथाएं क्या हैं?',
+        'health_check': 'स्वस्थ गाय के संकेत?',
+        'breeding_advice': 'प्रजनन मौसम की सलाह?',
+        'disease_prevention': 'बीमारियों को कैसे रोकें?',
+        'milk_production': 'दूध उत्पादन कैसे बढ़ाएं?'
+    },
+    'ಕನ್ನಡ (Kannada)': {
+        'title': '🐄 ಗೋರಕ್ಷಕ',
+        'subtitle': 'ಎಐ-ಚಾಲಿತ ಜಾನುವಾರು ಸಂರಕ್ಷಣೆ ಮತ್ತು ನಿರ್ವಹಣೆ ವೇದಿಕೆ',
+        'dashboard': 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್',
+        'breed_recognition': 'ಎಐ ತಳಿ ಗುರುತಿಸುವಿಕೆ',
+        'chatbot': 'ಎಐ ಚಾಟ್‌ಬಾಟ್',
+        'animal_registration': 'ಪ್ರಾಣಿ ನೋಂದಣಿ',
+        'conservation_alerts': 'ಸಂರಕ್ಷಣೆ ಎಚ್ಚರಿಕೆಗಳು',
+        'donation_portal': 'ದಾನ ಪೋರ್ಟಲ್',
+        'bpa_integration': 'ಬಿಪಿಎ ಏಕೀಕರಣ',
+        'analytics': 'ವಿಶ್ಲೇಷಣೆ',
+        'upload_image': '📸 ಹಸು/ಎಮ್ಮೆ ಚಿತ್ರವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ',
+        'analyze_button': '🔬 ಎಐ ಪೈಪ್‌ಲೈನ್‌ನೊಂದಿಗೆ ವಿಶ್ಲೇಷಿಸಿ',
+        'ask_question': 'ಜಾನುವಾರು ಸಾಕಣೆಯ ಬಗ್ಗೆ ಏನನ್ನಾದರೂ ಕೇಳಿ...',
+        'send': 'ಕಳುಹಿಸಿ',
+        'quick_questions': 'ತ್ವರಿತ ಪ್ರಶ್ನೆಗಳು',
+        'breed_care': 'ನನ್ನ ಹಸುವಿನ ತಳಿಯನ್ನು ಹೇಗೆ ನೋಡಿಕೊಳ್ಳಬೇಕು?',
+        'feeding_tips': 'ಅತ್ಯುತ್ತಮ ಆಹಾರ ನೀಡುವ ಅಭ್ಯಾಸಗಳು ಯಾವುವು?',
+        'health_check': 'ಆರೋಗ್ಯಕರ ಜಾನುವಾರುಗಳ ಚಿಹ್ನೆಗಳು?',
+        'breeding_advice': 'ಸಂತಾನೋತ್ಪತ್ತಿ ಋತುವಿನ ಸಲಹೆ?',
+        'disease_prevention': 'ರೋಗಗಳನ್ನು ಹೇಗೆ ತಡೆಯುವುದು?',
+        'milk_production': 'ಹಾಲಿನ ಉತ್ಪಾದನೆಯನ್ನು ಹೇಗೆ ಹೆಚ್ಚಿಸುವುದು?'
+    },
+    'தமிழ் (Tamil)': {
+        'title': '🐄 கோரக்ஷக்',
+        'subtitle': 'AI-இயங்கும் கால்நடை பாதுகாப்பு மற்றும் மேலாண்மை தளம்',
+        'dashboard': 'டாஷ்போர்டு',
+        'breed_recognition': 'AI இன அடையாளம்',
+        'chatbot': 'AI சாட்பாட்',
+        'animal_registration': 'விலங்கு பதிவு',
+        'conservation_alerts': 'பாதுகாப்பு எச்சரிக்கைகள்',
+        'donation_portal': 'நன்கொடை போர்டல்',
+        'bpa_integration': 'BPA ஒருங்கிணைப்பு',
+        'analytics': 'பகுப்பாய்வு',
+        'upload_image': '📸 மாடு/எருமை படத்தை பதிவேற்றவும்',
+        'analyze_button': '🔬 AI பைப்லைனுடன் பகுப்பாய்வு செய்யவும்',
+        'ask_question': 'கால்நடை வளர்ப்பு பற்றி எதையும் கேளுங்கள்...',
+        'send': 'அனுப்பு',
+        'quick_questions': 'விரைவு கேள்விகள்',
+        'breed_care': 'என் மாட்டு இனத்தை எப்படி கவனித்துக்கொள்வது?',
+        'feeding_tips': 'சிறந்த உணவு முறைகள் என்ன?',
+        'health_check': 'ஆரோக்கியமான கால்நடைகளின் அறிகுறிகள்?',
+        'breeding_advice': 'இனப்பெருக்க காலத்தின் ஆலோசனை?',
+        'disease_prevention': 'நோய்களை எப்படி தடுப்பது?',
+        'milk_production': 'பால் உற்பத்தியை எப்படி அதிகரிப்பது?'
+    },
+    'తెలుగు (Telugu)': {
+        'title': '🐄 గోరక్షక్',
+        'subtitle': 'AI-శక్తితో పశువుల పరిరక్షణ మరియు నిర్వహణ వేదిక',
+        'dashboard': 'డాష్‌బోర్డ్',
+        'breed_recognition': 'AI జాతి గుర్తింపు',
+        'chatbot': 'AI చాట్‌బాట్',
+        'animal_registration': 'పశు నమోదు',
+        'conservation_alerts': 'పరిరక్షణ హెచ్చరికలు',
+        'donation_portal': 'దానం పోర్టల్',
+        'bpa_integration': 'BPA ఏకీకరణ',
+        'analytics': 'విశ్లేషణలు',
+        'upload_image': '📸 ఆవు/గేదె చిత్రాన్ని అప్‌లోడ్ చేయండి',
+        'analyze_button': '🔬 AI పైప్‌లైన్‌తో విశ్లేషించండి',
+        'ask_question': 'పశువుల పెంపకం గురించి ఏదైనా అడగండి...',
+        'send': 'పంపు',
+        'quick_questions': 'త్వరిత ప్రశ్నలు',
+        'breed_care': 'నా ఆవు జాతిని ఎలా చూసుకోవాలి?',
+        'feeding_tips': 'ఉత్తమ ఆహార పద్ధతులు ఏమిటి?',
+        'health_check': 'ఆరోగ్యకరమైన పశువుల సంకేతాలు?',
+        'breeding_advice': 'సంతానోత్పత్తి కాలం సలహా?',
+        'disease_prevention': 'వ్యాధులను ఎలా నివారించాలి?',
+        'milk_production': 'పాల ఉత్పాదనను ఎలా పెంచాలి?'
+    }
+}
+
+def get_text(key):
+    """Get translated text based on selected language"""
+    return TRANSLATIONS.get(st.session_state.selected_language, TRANSLATIONS['English']).get(key, key)
+
+# AI Chatbot Functions
+def get_chatbot_response(question, language='English'):
+    """Get AI response for chatbot questions"""
+    try:
+        client = get_groq_client()
+        if not client:
+            return get_fallback_response(question, language)
+        
+        # Create language-specific prompt
+        language_instruction = ""
+        if language != 'English':
+            language_instruction = f"Please respond in {language}. "
+        
+        prompt = f"""
+        You are an expert AI assistant specializing in Indian cattle and buffalo farming. 
+        {language_instruction}Provide helpful, accurate, and practical advice for farmers.
+        
+        Focus on:
+        - Indian cattle breeds (Gir, Sahiwal, Red Sindhi, Tharparkar, etc.)
+        - Buffalo breeds (Murrah, Jaffarabadi, Surti, etc.)
+        - Traditional and modern farming practices
+        - Health management and disease prevention
+        - Nutrition and feeding
+        - Breeding and reproduction
+        - Economic aspects of cattle farming
+        
+        Keep responses concise but informative. Use simple language that farmers can understand.
+        
+        Question: {question}
+        """
+        
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        st.warning(f"Chatbot API error: {e}")
+        return get_fallback_response(question, language)
+
+def get_fallback_response(question, language='English'):
+    """Provide fallback responses when API is unavailable"""
+    responses = {
+        'English': {
+            'care': "For proper cattle care: 1) Provide clean water daily 2) Feed quality fodder 3) Regular health checkups 4) Maintain clean shelter 5) Follow vaccination schedule",
+            'feeding': "Best feeding practices: 1) Green fodder (30-40 kg/day) 2) Dry fodder (6-8 kg/day) 3) Concentrate feed (3-4 kg/day) 4) Fresh water (70-80 liters/day) 5) Mineral supplements",
+            'health': "Signs of healthy cattle: 1) Bright, alert eyes 2) Wet, cool nose 3) Regular eating and rumination 4) Normal body temperature (101-102°F) 5) Smooth, shiny coat",
+            'breeding': "Breeding season advice: 1) Best time: October to February 2) Ensure proper nutrition 3) Monitor heat cycles 4) Use quality bulls/AI 5) Maintain breeding records",
+            'disease': "Disease prevention: 1) Regular vaccination 2) Clean environment 3) Quarantine new animals 4) Proper nutrition 5) Regular deworming 6) Veterinary checkups",
+            'milk': "Increase milk production: 1) Quality feed and fodder 2) Regular milking schedule 3) Stress-free environment 4) Proper breeding 5) Health management"
+        },
+        'हिन्दी (Hindi)': {
+            'care': "उचित पशु देखभाल के लिए: 1) रोज साफ पानी दें 2) गुणवत्तापूर्ण चारा खिलाएं 3) नियमित स्वास्थ्य जांच 4) साफ आश्रय बनाए रखें 5) टीकाकरण कार्यक्रम का पालन करें",
+            'feeding': "सर्वोत्तम आहार प्रथाएं: 1) हरा चारा (30-40 किग्रा/दिन) 2) सूखा चारा (6-8 किग्रा/दिन) 3) दाना मिश्रण (3-4 किग्रा/दिन) 4) ताजा पानी (70-80 लीटर/दिन) 5) खनिज पूरक",
+            'health': "स्वस्थ पशु के लक्षण: 1) चमकदार, सतर्क आंखें 2) गीली, ठंडी नाक 3) नियमित खाना और जुगाली 4) सामान्य शरीर का तापमान 5) चिकना, चमकदार कोट",
+            'breeding': "प्रजनन मौसम की सलाह: 1) सबसे अच्छा समय: अक्टूबर से फरवरी 2) उचित पोषण सुनिश्चित करें 3) गर्मी चक्र की निगरानी करें 4) गुणवत्तापूर्ण सांड/कृत्रिम गर्भाधान का उपयोग करें",
+            'disease': "रोग की रोकथाम: 1) नियमित टीकाकरण 2) स्वच्छ वातावरण 3) नए जानवरों को अलग रखें 4) उचित पोषण 5) नियमित कृमि मुक्ति 6) पशु चिकित्सक जांच",
+            'milk': "दूध उत्पादन बढ़ाने के लिए: 1) गुणवत्तापूर्ण आहार और चारा 2) नियमित दुहने का समय 3) तनाव मुक्त वातावरण 4) उचित प्रजनन 5) स्वास्थ्य प्रबंधन"
+        }
+    }
+    
+    # Simple keyword matching for fallback
+    question_lower = question.lower()
+    lang_key = language if language in responses else 'English'
+    
+    if any(word in question_lower for word in ['care', 'देखभाल', 'ಆರೈಕೆ']):
+        return responses[lang_key].get('care', responses['English']['care'])
+    elif any(word in question_lower for word in ['feed', 'food', 'आहार', 'ಆಹಾರ']):
+        return responses[lang_key].get('feeding', responses['English']['feeding'])
+    elif any(word in question_lower for word in ['health', 'स्वास्थ्य', 'ಆರೋಗ್ಯ']):
+        return responses[lang_key].get('health', responses['English']['health'])
+    elif any(word in question_lower for word in ['breed', 'प्रजनन', 'ಸಂತಾನೋತ್ಪತ್ತಿ']):
+        return responses[lang_key].get('breeding', responses['English']['breeding'])
+    elif any(word in question_lower for word in ['disease', 'रोग', 'ರೋಗ']):
+        return responses[lang_key].get('disease', responses['English']['disease'])
+    elif any(word in question_lower for word in ['milk', 'दूध', 'ಹಾಲು']):
+        return responses[lang_key].get('milk', responses['English']['milk'])
+    else:
+        return f"Thank you for your question about cattle farming. For specific advice about '{question}', I recommend consulting with a local veterinarian or agricultural extension officer."
 
 # Enhanced AI Model Configuration
 @st.cache_resource
@@ -658,12 +958,152 @@ def process_donation(amount, frequency, donor_name, target_breed=None):
     return donation
 
 
+# AI Chatbot Functions
+def get_chatbot_response(question, language='English'):
+    """Get AI response for chatbot questions"""
+    try:
+        client = get_groq_client()
+        if not client:
+            return get_fallback_response(question, language)
+        
+        # Create language-specific prompt
+        language_instruction = ""
+        if language != 'English':
+            language_instruction = f"Please respond in {language}. "
+        
+        prompt = f"""
+        You are an expert AI assistant specializing in Indian cattle and buffalo farming. 
+        {language_instruction}Provide helpful, accurate, and practical advice for farmers.
+        
+        Focus on:
+        - Indian cattle breeds (Gir, Sahiwal, Red Sindhi, Tharparkar, etc.)
+        - Buffalo breeds (Murrah, Jaffarabadi, Surti, etc.)
+        - Traditional and modern farming practices
+        - Health management and disease prevention
+        - Nutrition and feeding
+        - Breeding and reproduction
+        - Economic aspects of cattle farming
+        
+        Keep responses concise but informative. Use simple language that farmers can understand.
+        
+        Question: {question}
+        """
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        st.warning(f"Chatbot API error: {e}")
+        return get_fallback_response(question, language)
+
+def get_fallback_response(question, language='English'):
+    """Provide fallback responses when API is unavailable"""
+    responses = {
+        'English': {
+            'care': "For proper cattle care: 1) Provide clean water daily 2) Feed quality fodder 3) Regular health checkups 4) Maintain clean shelter 5) Follow vaccination schedule",
+            'feeding': "Best feeding practices: 1) Green fodder (30-40 kg/day) 2) Dry fodder (6-8 kg/day) 3) Concentrate feed (3-4 kg/day) 4) Fresh water (70-80 liters/day) 5) Mineral supplements",
+            'health': "Signs of healthy cattle: 1) Bright, alert eyes 2) Wet, cool nose 3) Regular eating and rumination 4) Normal body temperature (101-102°F) 5) Smooth, shiny coat",
+            'breeding': "Breeding season advice: 1) Best time: October to February 2) Ensure proper nutrition 3) Monitor heat cycles 4) Use quality bulls/AI 5) Maintain breeding records",
+            'disease': "Disease prevention: 1) Regular vaccination 2) Clean environment 3) Quarantine new animals 4) Proper nutrition 5) Regular deworming 6) Veterinary checkups",
+            'milk': "Increase milk production: 1) Quality feed and fodder 2) Regular milking schedule 3) Stress-free environment 4) Proper breeding 5) Health management"
+        },
+        'हिन्दी (Hindi)': {
+            'care': "उचित पशु देखभाल के लिए: 1) रोज साफ पानी दें 2) गुणवत्तापूर्ण चारा खिलाएं 3) नियमित स्वास्थ्य जांच 4) साफ आश्रय बनाए रखें 5) टीकाकरण कार्यक्रम का पालन करें",
+            'feeding': "सर्वोत्तम आहार प्रथाएं: 1) हरा चारा (30-40 किग्रा/दिन) 2) सूखा चारा (6-8 किग्रा/दिन) 3) दाना मिश्रण (3-4 किग्रा/दिन) 4) ताजा पानी (70-80 लीटर/दिन) 5) खनिज पूरक",
+            'health': "स्वस्थ पशु के लक्षण: 1) चमकदार, सतर्क आंखें 2) गीली, ठंडी नाक 3) नियमित खाना और जुगाली 4) सामान्य शरीर का तापमान 5) चिकना, चमकदार कोट",
+            'breeding': "प्रजनन मौसम की सलाह: 1) सबसे अच्छा समय: अक्टूबर से फरवरी 2) उचित पोषण सुनिश्चित करें 3) गर्मी चक्र की निगरानी करें 4) गुणवत्तापूर्ण सांड/कृत्रिम गर्भाधान का उपयोग करें",
+            'disease': "रोग की रोकथाम: 1) नियमित टीकाकरण 2) स्वच्छ वातावरण 3) नए जानवरों को अलग रखें 4) उचित पोषण 5) नियमित कृमि मुक्ति 6) पशु चिकित्सक जांच",
+            'milk': "दूध उत्पादन बढ़ाने के लिए: 1) गुणवत्तापूर्ण आहार और चारा 2) नियमित दुहने का समय 3) तनाव मुक्त वातावरण 4) उचित प्रजनन 5) स्वास्थ्य प्रबंधन"
+        }
+    }
+    
+    # Simple keyword matching for fallback
+    question_lower = question.lower()
+    lang_key = language if language in responses else 'English'
+    
+    if any(word in question_lower for word in ['care', 'देखभाल', 'ಆರೈಕೆ']):
+        return responses[lang_key].get('care', responses['English']['care'])
+    elif any(word in question_lower for word in ['feed', 'food', 'आहार', 'ಆಹಾರ']):
+        return responses[lang_key].get('feeding', responses['English']['feeding'])
+    elif any(word in question_lower for word in ['health', 'स्वास्थ्य', 'ಆರೋಗ್ಯ']):
+        return responses[lang_key].get('health', responses['English']['health'])
+    elif any(word in question_lower for word in ['breed', 'प्रजनन', 'ಸಂತಾನೋತ್ಪತ್ತಿ']):
+        return responses[lang_key].get('breeding', responses['English']['breeding'])
+    elif any(word in question_lower for word in ['disease', 'रोग', 'ರೋಗ']):
+        return responses[lang_key].get('disease', responses['English']['disease'])
+    elif any(word in question_lower for word in ['milk', 'दूध', 'ಹಾಲು']):
+        return responses[lang_key].get('milk', responses['English']['milk'])
+    else:
+        return f"Thank you for your question about cattle farming. For specific advice about '{question}', I recommend consulting with a local veterinarian or agricultural extension officer."
+
+def get_text(key):
+    """Get translated text based on selected language"""
+    translations = {
+        'English': {
+            'title': '🐄 GowRakshak',
+            'subtitle': 'AI-Powered Cattle Conservation & Management Platform',
+            'dashboard': 'Dashboard',
+            'breed_recognition': 'AI Breed Recognition',
+            'chatbot': 'AI Chatbot',
+            'animal_registration': 'Animal Registration',
+            'conservation_alerts': 'Conservation Alerts',
+            'donation_portal': 'Donation Portal',
+            'bpa_integration': 'BPA Integration',
+            'analytics': 'Analytics',
+            'upload_image': '📸 Upload Cattle/Buffalo Image',
+            'analyze_button': '🔬 Analyze with AI Pipeline',
+            'ask_question': 'Ask me anything about cattle farming...',
+            'send': 'Send',
+            'quick_questions': 'Quick Questions',
+            'breed_care': 'How to care for my cattle breed?',
+            'feeding_tips': 'What are the best feeding practices?',
+            'health_check': 'Signs of healthy cattle?',
+            'breeding_advice': 'Breeding season advice?',
+            'disease_prevention': 'How to prevent diseases?',
+            'milk_production': 'How to increase milk production?'
+        },
+        'हिन्दी (Hindi)': {
+            'title': '🐄 गौरक्षक',
+            'subtitle': 'एआई-संचालित पशु संरक्षण और प्रबंधन मंच',
+            'dashboard': 'डैशबोर्ड',
+            'breed_recognition': 'एआई नस्ल पहचान',
+            'chatbot': 'एआई चैटबॉट',
+            'animal_registration': 'पशु पंजीकरण',
+            'conservation_alerts': 'संरक्षण चेतावनी',
+            'donation_portal': 'दान पोर्टल',
+            'bpa_integration': 'बीपीए एकीकरण',
+            'analytics': 'विश्लेषण',
+            'upload_image': '📸 गाय/भैंस की तस्वीर अपलोड करें',
+            'analyze_button': '🔬 एआई पाइपलाइन से विश्लेषण करें',
+            'ask_question': 'पशुपालन के बारे में कुछ भी पूछें...',
+            'send': 'भेजें',
+            'quick_questions': 'त्वरित प्रश्न',
+            'breed_care': 'अपनी गाय की नस्ल की देखभाल कैसे करें?',
+            'feeding_tips': 'सबसे अच्छी खिलाने की प्रथाएं क्या हैं?',
+            'health_check': 'स्वस्थ गाय के संकेत?',
+            'breeding_advice': 'प्रजनन मौसम की सलाह?',
+            'disease_prevention': 'बीमारियों को कैसे रोकें?',
+            'milk_production': 'दूध उत्पादन कैसे बढ़ाएं?'
+        }
+    }
+    return translations.get(st.session_state.selected_language, translations['English']).get(key, key)
+
+
 def main():
-    # Enhanced header
-    st.markdown("""
+    # Enhanced header with translations
+    st.markdown(f"""
     <div class="main-header">
-        <h1>🐄 GowRakshak</h1>
-        <p>AI-Powered Cattle Conservation & Management Platform</p>
+        <h1>{get_text('title')}</h1>
+        <p>{get_text('subtitle')}</p>
         <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
             <span style="background: rgba(255,255,255,0.2); padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.9rem;">
                 🤖 Multi-Model AI Pipeline
@@ -684,8 +1124,14 @@ def main():
         language = st.selectbox(
             "🌐 भाषा चुनें / Choose Language",
             ["English", "हिन्दी (Hindi)", "ಕನ್ನಡ (Kannada)", "தமிழ் (Tamil)", "తెలుగు (Telugu)"],
-            help="Select your preferred language"
+            help="Select your preferred language",
+            key="main_language"
         )
+        
+        # Update session state when language changes
+        if language != st.session_state.selected_language:
+            st.session_state.selected_language = language
+            st.rerun()
 
     # Navigation
     with st.sidebar:
@@ -704,9 +1150,10 @@ def main():
 
         selected = option_menu(
             menu_title="Navigation",
-            options=["Dashboard", "AI Breed Recognition", "Animal Registration", "Conservation Alerts",
-                     "Donation Portal", "BPA Integration", "Analytics"],
-            icons=["house", "camera", "plus-circle", "exclamation-triangle", "heart", "cloud-upload", "graph-up"],
+            options=[get_text("dashboard"), get_text("breed_recognition"), get_text("chatbot"), 
+                    get_text("animal_registration"), get_text("conservation_alerts"),
+                    get_text("donation_portal"), get_text("bpa_integration"), get_text("analytics")],
+            icons=["house", "camera", "chat-dots", "plus-circle", "exclamation-triangle", "heart", "cloud-upload", "graph-up"],
             menu_icon="list",
             default_index=0,
             styles={
@@ -723,19 +1170,21 @@ def main():
         )
 
     # Route to different sections
-    if selected == "Dashboard":
+    if selected == get_text("dashboard"):
         show_dashboard()
-    elif selected == "AI Breed Recognition":
+    elif selected == get_text("breed_recognition"):
         show_breed_recognition()
-    elif selected == "Animal Registration":
+    elif selected == get_text("chatbot"):
+        show_chatbot()
+    elif selected == get_text("animal_registration"):
         show_animal_registration()
-    elif selected == "Conservation Alerts":
+    elif selected == get_text("conservation_alerts"):
         show_conservation_alerts()
-    elif selected == "Donation Portal":
+    elif selected == get_text("donation_portal"):
         show_donation_portal()
-    elif selected == "BPA Integration":
+    elif selected == get_text("bpa_integration"):
         show_bpa_integration()
-    elif selected == "Analytics":
+    elif selected == get_text("analytics"):
         show_analytics()
 
 
@@ -1006,6 +1455,141 @@ def show_conservation_alert(breed_data, conservation_info):
         'action_needed': 'High Priority Conservation'
     }
     st.session_state.conservation_alerts.append(alert)
+
+
+def show_chatbot():
+    """AI Chatbot interface with multi-language support"""
+    
+    st.markdown("### 🤖 AI Cattle Farming Assistant")
+    
+    # Language selection for chatbot
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        chat_language = st.selectbox(
+            "🌐 Select Chat Language",
+            ["English", "हिन्दी (Hindi)", "ಕನ್ನಡ (Kannada)", "தமிழ் (Tamil)", "తెలుగు (Telugu)"],
+            key="chat_language",
+            help="Choose your preferred language for the conversation"
+        )
+    
+    # Update session state language
+    st.session_state.selected_language = chat_language
+    
+    # Quick question buttons
+    st.markdown("### ⚡ Quick Questions")
+    
+    quick_questions = [
+        ("🐄 " + get_text('breed_care'), get_text('breed_care')),
+        ("🌾 " + get_text('feeding_tips'), get_text('feeding_tips')),
+        ("🏥 " + get_text('health_check'), get_text('health_check')),
+        ("💕 " + get_text('breeding_advice'), get_text('breeding_advice')),
+        ("🛡️ " + get_text('disease_prevention'), get_text('disease_prevention')),
+        ("🥛 " + get_text('milk_production'), get_text('milk_production'))
+    ]
+    
+    # Display quick questions in a grid
+    col1, col2, col3 = st.columns(3)
+    
+    for i, (display_text, question_text) in enumerate(quick_questions):
+        with [col1, col2, col3][i % 3]:
+            if st.button(display_text, key=f"quick_{i}", use_container_width=True):
+                # Add question to chat history
+                st.session_state.chat_history.append({
+                    'type': 'user',
+                    'message': question_text,
+                    'timestamp': datetime.now()
+                })
+                
+                # Get AI response
+                response = get_chatbot_response(question_text, chat_language)
+                st.session_state.chat_history.append({
+                    'type': 'assistant',
+                    'message': response,
+                    'timestamp': datetime.now()
+                })
+                
+                st.rerun()
+    
+    # Chat interface
+    st.markdown("### 💬 Chat with AI Assistant")
+    
+    # Display chat history
+    chat_container = st.container()
+    
+    with chat_container:
+        if st.session_state.chat_history:
+            for chat in st.session_state.chat_history[-10:]:  # Show last 10 messages
+                if chat['type'] == 'user':
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); padding: 1rem; border-radius: 10px; margin: 0.5rem 0; border-left: 4px solid #1976d2;">
+                        <strong>👤 You:</strong> {chat['message']}
+                        <br><small style="color: #666;">{chat['timestamp'].strftime('%H:%M')}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #e8f5e8, #f0f8f0); padding: 1rem; border-radius: 10px; margin: 0.5rem 0; border-left: 4px solid #2E8B57;">
+                        <strong>🤖 AI Assistant:</strong> {chat['message']}
+                        <br><small style="color: #666;">{chat['timestamp'].strftime('%H:%M')}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("👋 Welcome! Ask me anything about cattle farming, or use the quick questions above.")
+    
+    # Chat input
+    with st.form("chat_form", clear_on_submit=True):
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            user_question = st.text_input(
+                "Your Question",
+                placeholder=get_text('ask_question'),
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            submitted = st.form_submit_button(get_text('send'), use_container_width=True)
+        
+        if submitted and user_question.strip():
+            # Add user message to chat history
+            st.session_state.chat_history.append({
+                'type': 'user',
+                'message': user_question,
+                'timestamp': datetime.now()
+            })
+            
+            # Get AI response
+            with st.spinner("🤔 Thinking..."):
+                response = get_chatbot_response(user_question, chat_language)
+                
+            st.session_state.chat_history.append({
+                'type': 'assistant',
+                'message': response,
+                'timestamp': datetime.now()
+            })
+            
+            st.rerun()
+    
+    # Clear chat button
+    if st.button("🗑️ Clear Chat History", type="secondary"):
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    # Chat statistics
+    if st.session_state.chat_history:
+        st.markdown("### 📊 Chat Statistics")
+        
+        total_messages = len(st.session_state.chat_history)
+        user_messages = len([m for m in st.session_state.chat_history if m['type'] == 'user'])
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Messages", total_messages)
+        with col2:
+            st.metric("Your Questions", user_messages)
+        with col3:
+            st.metric("AI Responses", total_messages - user_messages)
 
 
 def show_animal_registration():
