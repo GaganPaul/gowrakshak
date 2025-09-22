@@ -38,13 +38,13 @@ st.markdown("""
     }
 
     @media (min-width: 768px) {
-        .main {
-            padding: 1rem 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
+    .main {
+        padding: 1rem 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
         }
     }
-
+    
     /* Enhanced header with government theme */
     .main-header {
         background: linear-gradient(135deg, #2E8B57, #228B22, #006400);
@@ -69,7 +69,7 @@ st.markdown("""
         background-size: 50px 50px;
         animation: float 20s infinite linear;
     }
-
+    
     .main-header h1 {
         margin: 0 0 0.5rem 0;
         font-size: 2.2rem;
@@ -78,7 +78,7 @@ st.markdown("""
         position: relative;
         z-index: 1;
     }
-
+    
     .main-header p {
         margin: 0;
         font-size: 1.1rem;
@@ -137,7 +137,7 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-
+    
     .stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(46, 139, 87, 0.4);
@@ -252,7 +252,7 @@ st.markdown("""
             font-size: 1.5rem;
         }
 
-        .stColumns {
+    .stColumns {
             flex-direction: column;
         }
 
@@ -343,14 +343,14 @@ st.markdown("""
         padding: 0.5rem;
         border-radius: 10px;
     }
-
+    
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px;
         padding: 0.5rem 1rem;
         font-weight: 600;
         transition: all 0.3s ease;
     }
-
+    
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #2E8B57, #228B22);
         color: white;
@@ -373,6 +373,8 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'selected_language' not in st.session_state:
     st.session_state.selected_language = 'English'
+if 'current_page_key' not in st.session_state:
+    st.session_state.current_page_key = 'dashboard'
 
 # Multi-language translations
 TRANSLATIONS = {
@@ -497,92 +499,7 @@ def get_text(key):
     """Get translated text based on selected language"""
     return TRANSLATIONS.get(st.session_state.selected_language, TRANSLATIONS['English']).get(key, key)
 
-# AI Chatbot Functions
-def get_chatbot_response(question, language='English'):
-    """Get AI response for chatbot questions"""
-    try:
-        client = get_groq_client()
-        if not client:
-            return get_fallback_response(question, language)
-        
-        # Create language-specific prompt
-        language_instruction = ""
-        if language != 'English':
-            language_instruction = f"Please respond in {language}. "
-        
-        prompt = f"""
-        You are an expert AI assistant specializing in Indian cattle and buffalo farming. 
-        {language_instruction}Provide helpful, accurate, and practical advice for farmers.
-        
-        Focus on:
-        - Indian cattle breeds (Gir, Sahiwal, Red Sindhi, Tharparkar, etc.)
-        - Buffalo breeds (Murrah, Jaffarabadi, Surti, etc.)
-        - Traditional and modern farming practices
-        - Health management and disease prevention
-        - Nutrition and feeding
-        - Breeding and reproduction
-        - Economic aspects of cattle farming
-        
-        Keep responses concise but informative. Use simple language that farmers can understand.
-        
-        Question: {question}
-        """
-        
-        response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": question}
-            ],
-            temperature=0.7,
-            max_tokens=500
-        )
-        
-        return response.choices[0].message.content
-        
-    except Exception as e:
-        st.warning(f"Chatbot API error: {e}")
-        return get_fallback_response(question, language)
-
-def get_fallback_response(question, language='English'):
-    """Provide fallback responses when API is unavailable"""
-    responses = {
-        'English': {
-            'care': "For proper cattle care: 1) Provide clean water daily 2) Feed quality fodder 3) Regular health checkups 4) Maintain clean shelter 5) Follow vaccination schedule",
-            'feeding': "Best feeding practices: 1) Green fodder (30-40 kg/day) 2) Dry fodder (6-8 kg/day) 3) Concentrate feed (3-4 kg/day) 4) Fresh water (70-80 liters/day) 5) Mineral supplements",
-            'health': "Signs of healthy cattle: 1) Bright, alert eyes 2) Wet, cool nose 3) Regular eating and rumination 4) Normal body temperature (101-102°F) 5) Smooth, shiny coat",
-            'breeding': "Breeding season advice: 1) Best time: October to February 2) Ensure proper nutrition 3) Monitor heat cycles 4) Use quality bulls/AI 5) Maintain breeding records",
-            'disease': "Disease prevention: 1) Regular vaccination 2) Clean environment 3) Quarantine new animals 4) Proper nutrition 5) Regular deworming 6) Veterinary checkups",
-            'milk': "Increase milk production: 1) Quality feed and fodder 2) Regular milking schedule 3) Stress-free environment 4) Proper breeding 5) Health management"
-        },
-        'हिन्दी (Hindi)': {
-            'care': "उचित पशु देखभाल के लिए: 1) रोज साफ पानी दें 2) गुणवत्तापूर्ण चारा खिलाएं 3) नियमित स्वास्थ्य जांच 4) साफ आश्रय बनाए रखें 5) टीकाकरण कार्यक्रम का पालन करें",
-            'feeding': "सर्वोत्तम आहार प्रथाएं: 1) हरा चारा (30-40 किग्रा/दिन) 2) सूखा चारा (6-8 किग्रा/दिन) 3) दाना मिश्रण (3-4 किग्रा/दिन) 4) ताजा पानी (70-80 लीटर/दिन) 5) खनिज पूरक",
-            'health': "स्वस्थ पशु के लक्षण: 1) चमकदार, सतर्क आंखें 2) गीली, ठंडी नाक 3) नियमित खाना और जुगाली 4) सामान्य शरीर का तापमान 5) चिकना, चमकदार कोट",
-            'breeding': "प्रजनन मौसम की सलाह: 1) सबसे अच्छा समय: अक्टूबर से फरवरी 2) उचित पोषण सुनिश्चित करें 3) गर्मी चक्र की निगरानी करें 4) गुणवत्तापूर्ण सांड/कृत्रिम गर्भाधान का उपयोग करें",
-            'disease': "रोग की रोकथाम: 1) नियमित टीकाकरण 2) स्वच्छ वातावरण 3) नए जानवरों को अलग रखें 4) उचित पोषण 5) नियमित कृमि मुक्ति 6) पशु चिकित्सक जांच",
-            'milk': "दूध उत्पादन बढ़ाने के लिए: 1) गुणवत्तापूर्ण आहार और चारा 2) नियमित दुहने का समय 3) तनाव मुक्त वातावरण 4) उचित प्रजनन 5) स्वास्थ्य प्रबंधन"
-        }
-    }
-    
-    # Simple keyword matching for fallback
-    question_lower = question.lower()
-    lang_key = language if language in responses else 'English'
-    
-    if any(word in question_lower for word in ['care', 'देखभाल', 'ಆರೈಕೆ']):
-        return responses[lang_key].get('care', responses['English']['care'])
-    elif any(word in question_lower for word in ['feed', 'food', 'आहार', 'ಆಹಾರ']):
-        return responses[lang_key].get('feeding', responses['English']['feeding'])
-    elif any(word in question_lower for word in ['health', 'स्वास्थ्य', 'ಆರೋಗ್ಯ']):
-        return responses[lang_key].get('health', responses['English']['health'])
-    elif any(word in question_lower for word in ['breed', 'प्रजनन', 'ಸಂತಾನೋತ್ಪತ್ತಿ']):
-        return responses[lang_key].get('breeding', responses['English']['breeding'])
-    elif any(word in question_lower for word in ['disease', 'रोग', 'ರೋಗ']):
-        return responses[lang_key].get('disease', responses['English']['disease'])
-    elif any(word in question_lower for word in ['milk', 'दूध', 'ಹಾಲು']):
-        return responses[lang_key].get('milk', responses['English']['milk'])
-    else:
-        return f"Thank you for your question about cattle farming. For specific advice about '{question}', I recommend consulting with a local veterinarian or agricultural extension officer."
+# (Removed duplicate early chatbot functions; consolidated later definitions will be used)
 
 # Enhanced AI Model Configuration
 @st.cache_resource
@@ -622,12 +539,17 @@ def initialize_ai_models():
 
 @st.cache_resource
 def get_groq_client():
-    """Initialize Groq client for AI processing"""
+    """Initialize Groq client for AI processing with graceful fallback"""
     try:
-        api_key = st.secrets["GROQ_API_KEY"]
-        return Groq(api_key=api_key)
+        # Try to get API key from secrets
+        api_key = st.secrets.get("GROQ_API_KEY")
+        if api_key:
+            return Groq(api_key=api_key)
+        else:
+            st.warning("🔧 Demo Mode: API key not found. Using simulated AI processing.")
+            return None
     except Exception as e:
-        st.error(f"Error initializing AI client: {e}")
+        st.warning(f"🔧 Demo Mode: {e}. Using simulated AI processing.")
         return None
 
 
@@ -742,7 +664,10 @@ def enhanced_breed_analysis(image_base64):
                     },
                     {
                         "role": "user",
-                        "content": f"Analyze this cattle/buffalo image for breed identification. Return only the JSON response as specified."
+                        "content": [
+                            {"type": "text", "text": "Analyze this cattle/buffalo image for breed identification. Return only the JSON response as specified."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                        ]
                     }
                 ],
                 temperature=0.1,
@@ -880,23 +805,6 @@ def create_enhanced_fallback_result():
     }
 
 
-# Updated get_groq_client function with better error handling
-@st.cache_resource
-def get_groq_client():
-    """Initialize Groq client for AI processing with graceful fallback"""
-    try:
-        # Try to get API key from secrets
-        api_key = st.secrets.get("GROQ_API_KEY")
-        if api_key:
-            return Groq(api_key=api_key)
-        else:
-            st.warning("🔧 Demo Mode: API key not found. Using simulated AI processing.")
-            return None
-    except Exception as e:
-        st.warning(f"🔧 Demo Mode: {e}. Using simulated AI processing.")
-        return None
-
-
 def create_fallback_result():
     """Create realistic fallback result"""
     breeds = ['Gir', 'Sahiwal', 'Murrah', 'Red Sindhi', 'Tharparkar']
@@ -911,7 +819,7 @@ def create_fallback_result():
         'conservation_status': 'common',
         'timestamp': datetime.now(),
         'ai_pipeline': 'Multi-model ensemble',
-        'bpa_integration_ready': 'true'
+        'bpa_integration_ready': True
     }
 
 
@@ -1117,7 +1025,7 @@ def main():
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
     # Language selection
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -1128,10 +1036,9 @@ def main():
             key="main_language"
         )
         
-        # Update session state when language changes
+        # Update session state when language changes (no forced rerun; Streamlit reruns automatically)
         if language != st.session_state.selected_language:
             st.session_state.selected_language = language
-            st.rerun()
 
     # Navigation
     with st.sidebar:
@@ -1145,17 +1052,28 @@ def main():
                 <small>📊 {model_info['params']} params | ⚡ {model_info['accuracy']}</small>
             </div>
             """, unsafe_allow_html=True)
-
+            
         st.markdown("---")
 
-        selected = option_menu(
+        # Stable page keys to preserve selection across languages
+        page_keys = [
+            'dashboard', 'breed_recognition', 'chatbot', 'animal_registration',
+            'conservation_alerts', 'donation_portal', 'bpa_integration', 'analytics'
+        ]
+        page_labels = [get_text(k) for k in page_keys]
+
+        # Compute default index from current key
+        try:
+            default_idx = page_keys.index(st.session_state.current_page_key)
+        except ValueError:
+            default_idx = 0
+
+        selected_label = option_menu(
             menu_title="Navigation",
-            options=[get_text("dashboard"), get_text("breed_recognition"), get_text("chatbot"), 
-                    get_text("animal_registration"), get_text("conservation_alerts"),
-                    get_text("donation_portal"), get_text("bpa_integration"), get_text("analytics")],
+            options=page_labels,
             icons=["house", "camera", "chat-dots", "plus-circle", "exclamation-triangle", "heart", "cloud-upload", "graph-up"],
             menu_icon="list",
-            default_index=0,
+            default_index=default_idx,
             styles={
                 "container": {"padding": "0!important", "background-color": "#fafafa"},
                 "icon": {"color": "#2E8B57", "font-size": "18px"},
@@ -1168,23 +1086,26 @@ def main():
                 "nav-link-selected": {"background-color": "#2E8B57"},
             }
         )
+        # Map selected label back to key and store
+        if selected_label in page_labels:
+            st.session_state.current_page_key = page_keys[page_labels.index(selected_label)]
 
     # Route to different sections
-    if selected == get_text("dashboard"):
+    if st.session_state.current_page_key == 'dashboard':
         show_dashboard()
-    elif selected == get_text("breed_recognition"):
+    elif st.session_state.current_page_key == 'breed_recognition':
         show_breed_recognition()
-    elif selected == get_text("chatbot"):
+    elif st.session_state.current_page_key == 'chatbot':
         show_chatbot()
-    elif selected == get_text("animal_registration"):
+    elif st.session_state.current_page_key == 'animal_registration':
         show_animal_registration()
-    elif selected == get_text("conservation_alerts"):
+    elif st.session_state.current_page_key == 'conservation_alerts':
         show_conservation_alerts()
-    elif selected == get_text("donation_portal"):
+    elif st.session_state.current_page_key == 'donation_portal':
         show_donation_portal()
-    elif selected == get_text("bpa_integration"):
+    elif st.session_state.current_page_key == 'bpa_integration':
         show_bpa_integration()
-    elif selected == get_text("analytics"):
+    elif st.session_state.current_page_key == 'analytics':
         show_analytics()
 
 
@@ -1200,7 +1121,7 @@ def show_dashboard():
         'rare_breeds_detected': 23,
         'conservation_funds': 156000
     }
-
+    
     with col1:
         st.markdown(f"""
         <div class="metric-card">
@@ -1209,7 +1130,7 @@ def show_dashboard():
             <p>+127 this month</p>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col2:
         st.markdown(f"""
         <div class="metric-card">
@@ -1218,7 +1139,7 @@ def show_dashboard():
             <p>Multi-model pipeline</p>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col3:
         st.markdown(f"""
         <div class="metric-card">
@@ -1227,7 +1148,7 @@ def show_dashboard():
             <p>Conservation alerts</p>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col4:
         st.markdown(f"""
         <div class="metric-card">
@@ -1240,11 +1161,11 @@ def show_dashboard():
     # Quick actions
     st.markdown("### 🚀 Quick Actions")
     col1, col2, col3 = st.columns(3)
-
+    
     with col1:
         if st.button("📸 Start Breed Recognition", use_container_width=True):
             st.rerun()
-
+    
     with col2:
         if st.button("⚠️ View Conservation Alerts", use_container_width=True):
             st.rerun()
@@ -1263,10 +1184,13 @@ def show_dashboard():
         'Donations': [random.randint(5, 20) for _ in range(30)]
     })
 
-    fig = px.line(activity_data, x='Date',
-                  y=['Registrations', 'Rare Breed Alerts', 'Donations'],
-                  title='Platform Activity Over Time',
-                  color_discrete_sequence=['#2E8B57', '#FF8C00', '#8A2BE2'])
+    fig = px.line(
+        activity_data,
+        x='Date',
+        y=['Registrations', 'Rare Breed Alerts', 'Donations'],
+        title='Platform Activity Over Time',
+        color_discrete_sequence=['#2E8B57', '#FF8C00', '#8A2BE2']
+    )
     fig.update_layout(
         plot_bgcolor='white',
         paper_bgcolor='white',
@@ -1278,9 +1202,9 @@ def show_dashboard():
 
 def show_breed_recognition():
     """Enhanced AI breed recognition interface"""
-
+    
     st.markdown("### 🤖 AI-Powered Breed Recognition")
-
+    
     # Model information
     st.markdown("""
     <div class="model-info">
@@ -1292,16 +1216,16 @@ def show_breed_recognition():
             <div><strong>BERT-tiny:</strong> 4.4M params, Text processing</div>
         </div>
         <p><em>✅ Offline-ready models for field deployment</em></p>
-    </div>
-    """, unsafe_allow_html=True)
-
+        </div>
+        """, unsafe_allow_html=True)
+    
     # Image upload
     uploaded_file = st.file_uploader(
         "📸 Upload Cattle/Buffalo Image",
-        type=['png', 'jpg', 'jpeg'],
+            type=['png', 'jpg', 'jpeg'],
         help="Upload a clear image of cattle or buffalo for AI analysis"
-    )
-
+        )
+        
     if uploaded_file is not None:
         # Display image
         image = Image.open(uploaded_file)
@@ -1310,7 +1234,7 @@ def show_breed_recognition():
 
         with col1:
             st.image(image, caption="Original Image", use_column_width=True)
-
+            
         with col2:
             # Enhanced image processing
             enhanced_image = enhance_image_quality(image)
@@ -1323,7 +1247,7 @@ def show_breed_recognition():
             buffered = io.BytesIO()
             enhanced_image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode()
-
+            
             # Run AI analysis
             result = enhanced_breed_analysis(img_str)
 
@@ -1344,10 +1268,10 @@ def enhance_image_quality(image):
     """Enhanced image processing for better AI analysis"""
     try:
         from PIL import ImageEnhance, ImageFilter
-
+        
         if image.mode != 'RGB':
             image = image.convert('RGB')
-
+        
         # Multi-step enhancement
         enhancer = ImageEnhance.Contrast(image)
         image = enhancer.enhance(1.3)
@@ -1450,7 +1374,7 @@ def show_conservation_alert(breed_data, conservation_info):
     alert = {
         'breed': breed_data.get('breed'),
         'status': conservation_info.get('status'),
-        'timestamp': datetime.now(),
+                    'timestamp': datetime.now(),
         'location': 'Field Location',
         'action_needed': 'High Priority Conservation'
     }
@@ -1539,14 +1463,14 @@ def show_chatbot():
     # Chat input
     with st.form("chat_form", clear_on_submit=True):
         col1, col2 = st.columns([4, 1])
-        
+    
         with col1:
             user_question = st.text_input(
                 "Your Question",
                 placeholder=get_text('ask_question'),
                 label_visibility="collapsed"
             )
-        
+    
         with col2:
             submitted = st.form_submit_button(get_text('send'), use_container_width=True)
         
@@ -1604,7 +1528,7 @@ def show_animal_registration():
             owner_name = st.text_input("👤 Owner Name", placeholder="Enter owner's full name")
             owner_phone = st.text_input("📱 Phone Number", placeholder="+91-XXXXXXXXXX")
             location = st.text_input("📍 Location", placeholder="Village, District, State")
-
+                
         with col2:
             # Pre-filled from AI recognition if available
             if st.session_state.breed_results:
@@ -1623,11 +1547,11 @@ def show_animal_registration():
         # Health and additional details
         st.markdown("#### 🏥 Health Information")
         col1, col2 = st.columns(2)
-
+        
         with col1:
             health_status = st.selectbox("Health Status", ["Excellent", "Good", "Fair", "Needs Attention"])
             vaccination_status = st.selectbox("Vaccination", ["Up to date", "Partial", "Not vaccinated"])
-
+        
         with col2:
             weight = st.number_input("Weight (kg)", min_value=50, max_value=1000, value=350)
             milk_yield = st.number_input("Milk Yield (L/day)", min_value=0.0, max_value=50.0, value=10.0, step=0.1)
@@ -1669,9 +1593,9 @@ def show_animal_registration():
                 <p><strong>Breed:</strong> {animal_breed} ({animal_category})</p>
                 <p><strong>Location:</strong> {location}</p>
                 <p><strong>BPA Status:</strong> ✅ Submitted to Government Database</p>
-            </div>
-            """, unsafe_allow_html=True)
-
+        </div>
+        """, unsafe_allow_html=True)
+        
 
 def show_conservation_alerts():
     """Conservation alerts and management"""
@@ -1680,14 +1604,14 @@ def show_conservation_alerts():
 
     if st.session_state.conservation_alerts:
         for i, alert in enumerate(st.session_state.conservation_alerts):
-            st.markdown(f"""
+                st.markdown(f"""
             <div class="conservation-alert">
                 <h4>🚨 Alert #{i + 1}: {alert['breed']} Detected</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
                     <div><strong>Status:</strong> {alert['status']}</div>
                     <div><strong>Location:</strong> {alert['location']}</div>
                     <div><strong>Date:</strong> {alert['timestamp'].strftime('%Y-%m-%d')}</div>
-                </div>
+                    </div>
                 <p style="margin: 1rem 0;"><strong>Action:</strong> {alert['action_needed']}</p>
 
                 <div style="text-align: center; margin: 1rem 0;">
@@ -1697,9 +1621,9 @@ def show_conservation_alerts():
                     <button style="background: linear-gradient(135deg, #20B2AA, #48D1CC); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 20px; margin: 0.2rem; cursor: pointer;" onclick="alert('Expert contacted!')">
                         👨‍⚕️ Contact Expert
                     </button>
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
     else:
         st.info("No conservation alerts at this time. Keep monitoring for rare breed detections!")
 
@@ -1835,15 +1759,15 @@ def show_donation_portal():
             donor_totals[name] = donor_totals.get(name, 0) + amount
 
         # Sort and display top 5
-        top_donors = sorted(donor_totals.items(), key=lambda x: x, reverse=True)[:5]
+        top_donors = sorted(donor_totals.items(), key=lambda item: item[1], reverse=True)[:5]
 
         for i, (name, total) in enumerate(top_donors, 1):
             st.markdown(f"""
             <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 1rem; border-radius: 10px; margin: 0.5rem 0; border-left: 4px solid #8A2BE2;">
                 <strong>#{i} {name}</strong> - ₹{total:,} total contribution
-            </div>
-            """, unsafe_allow_html=True)
-
+    </div>
+    """, unsafe_allow_html=True)
+    
 
 def show_bpa_integration():
     """BPA (Bharat Pashudhan App) integration interface"""
@@ -1860,13 +1784,13 @@ def show_bpa_integration():
             <div>✅ <strong>Security:</strong> 256-bit encryption</div>
             <div>✅ <strong>Audit Trail:</strong> Complete</div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+        </div>
+        """, unsafe_allow_html=True)
+    
     # Data submission summary
     if st.session_state.registered_animals:
         st.markdown("### 📊 Registration Summary")
-
+    
         df = pd.DataFrame(st.session_state.registered_animals)
 
         # Summary statistics
@@ -1899,7 +1823,7 @@ def show_bpa_integration():
                     import time
                     time.sleep(2)
                 st.success("✅ All data synced successfully!")
-
+    
         with col2:
             if st.button("📊 Generate Report", use_container_width=True):
                 st.info("📋 Report generated and sent to authorities")
@@ -1935,7 +1859,7 @@ def show_bpa_integration():
             <small style="color: #666;">{log['timestamp']} - {log['details']}</small>
         </div>
         """, unsafe_allow_html=True)
-
+    
 
 def show_analytics():
     """Comprehensive analytics dashboard"""
@@ -1963,7 +1887,7 @@ def show_analytics():
 
     # Key metrics
     col1, col2, col3, col4 = st.columns(4)
-
+    
     with col1:
         st.metric("Total Animals", len(df))
     with col2:
@@ -1975,10 +1899,10 @@ def show_analytics():
     with col4:
         conservation_alerts = len(st.session_state.conservation_alerts)
         st.metric("Conservation Alerts", conservation_alerts)
-
+    
     # Charts
     col1, col2 = st.columns(2)
-
+        
     with col1:
         # Breed distribution
         if 'breed' in df.columns:
@@ -1993,7 +1917,7 @@ def show_analytics():
             )
             fig.update_layout(showlegend=False, yaxis={'categoryorder': 'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
-
+        
     with col2:
         # State distribution
         if 'state' in df.columns:
@@ -2010,7 +1934,7 @@ def show_analytics():
             states = ['Gujarat', 'Punjab', 'Haryana', 'Karnataka', 'Rajasthan']
             values = [25, 20, 18, 15, 12]
             fig = px.pie(values=values, names=states, title='Distribution by State')
-            st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     # Time series analysis
     st.markdown("### 📈 Registration Trends")
@@ -2038,7 +1962,7 @@ def show_analytics():
         paper_bgcolor='white'
     )
     st.plotly_chart(fig, use_container_width=True)
-
+    
     # Performance metrics
     st.markdown("### ⚡ System Performance")
 
